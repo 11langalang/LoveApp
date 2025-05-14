@@ -4,9 +4,23 @@ spring:
   ai:
     dashscope:
       api-key: sk-59e50f67b8ec46578b227caa87e98019  # 请替换为你的 API Key
-    chat:
-      options:
-        model: qwen-plus
+      chat:
+        options:
+          model: qwen-plus
+    vectorstore:
+      pgvector:
+        index-type: hnsw
+        dimensions: 1536
+        distance-type: cosine_distance
+        max-document-batch-size: 10000
+  datasource:
+    url: jdbc:postgresql://rm-cn-cfn49a104000xovo.rwlb.rds.aliyuncs.com:5432/postgres?ssl=true&sslmode=require
+    username: ykl_user
+    password: Yyykkklll111
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
 server:
   port: 8123
   servlet:

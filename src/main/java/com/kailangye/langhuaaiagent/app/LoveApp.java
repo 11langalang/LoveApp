@@ -1,14 +1,20 @@
 package com.kailangye.langhuaaiagent.app;
 
 import com.kailangye.langhuaaiagent.advisor.MyLoggerAdvisor;
+import com.kailangye.langhuaaiagent.chatmemory.FileBasedChatMemory;
+import com.kailangye.langhuaaiagent.service.SearchService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,6 +26,9 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 @Slf4j
 public class LoveApp {
 
+    @Resource
+    private SearchService service;
+
     private final ChatClient chatClient;
 
     private static final String SYSTEM_PROMPT = "扮演深耕恋爱心理领域的专家。开场向用户表明身份，告知用户可倾诉恋爱难题。" +
@@ -27,9 +36,14 @@ public class LoveApp {
             "恋爱状态询问沟通、习惯差异引发的矛盾；已婚状态询问家庭责任与亲属关系处理的问题。" +
             "引导用户详述事情经过、对方反应及自身想法，以便给出专属解决方案。";
 
+
+    @Resource
+    private VectorStore loveAppVectorStore;
+
     public LoveApp(ChatModel dashscopeChatModel) {
-        // 初始化基于内存的对话记忆
-        ChatMemory chatMemory = new InMemoryChatMemory();
+        // 初始化基于文件的对话记忆
+        String fileDir = System.getProperty("user.dir") + "/temp/chat-memory";
+        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
@@ -38,6 +52,8 @@ public class LoveApp {
                 )
                 .build();
     }
+
+
 
     public String doChat(String message, String chatId) {
         ChatResponse response = chatClient
@@ -85,6 +101,84 @@ public class LoveApp {
                 .entity(LoverReport.class);
         log.info("LoverReport: {}", loverReport);
         return loverReport;
+    }
+
+
+
+
+    public String doChatWithLocalRag(String message, String chatId) {
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                // 开启日志，便于观察效果
+                .advisors(new MyLoggerAdvisor())
+                // 应用知识库问答
+                .advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
+
+    @Resource
+    private Advisor loveAppRagCloudAdvisor;
+    public String doChatWithCloudRag(String message, String chatId) {
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                // 开启日志，便于观察效果
+                .advisors(new MyLoggerAdvisor())
+                // 应用知识库问答
+                .advisors(loveAppRagCloudAdvisor)
+                .call()
+                .chatResponse();
+
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
+
+
+    /**
+     * 结合在线搜索结果与AI进行对话
+     * @param message 用户的原始消息/问题
+     * @param chatId 对话ID
+     * @return AI的回答
+     */
+    public String doChatWithOnlineSearch(String message, String chatId) {
+        log.info("联网搜索查询: {}, chatId: {}", message, chatId);
+
+        // 1. 调用（模拟的）浏览网页API进行搜索
+        List<String> searchResultsUrls = service.callSearchAPI(message);
+        log.info("模拟搜索引擎返回的链接: {}", searchResultsUrls);
+
+        // 2. 构建包含搜索结果的提示给AI
+        StringBuilder augmentedUserMessage = new StringBuilder(message);
+        if (searchResultsUrls != null && !searchResultsUrls.isEmpty()) {
+            augmentedUserMessage.append("\n\n以下是相关的网络搜索结果，请参考这些信息进行回答：\n");
+            for (String url : searchResultsUrls) {
+                augmentedUserMessage.append("- ").append(url).append("\n");
+            }
+        }
+        // 为了保留原LoveApp的人设，我们还是用SYSTEM_PROMPT，将联网信息追加到用户消息中
+        ChatResponse response = chatClient
+                .prompt()
+                // .system() // 可以考虑动态修改system prompt，但此处我们让人设保持不变
+                .user(augmentedUserMessage.toString())
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10)) // 保留对话记忆
+                .advisors(new MyLoggerAdvisor()) // 保留日志 Advisor
+                .call()
+                .chatResponse();
+
+        String content = response.getResult().getOutput().getText();
+        log.info("AI (联网搜索后) 回答: {}", content);
+        return content;
     }
 
 }
