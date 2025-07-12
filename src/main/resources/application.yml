@@ -13,6 +13,10 @@ spring:
         dimensions: 1536
         distance-type: cosine_distance
         max-document-batch-size: 10000
+    mcp:
+      server:
+        name: mcp-server # MCP服务器名称
+        version: 0.0.1   # 服务器版本号
   datasource:
     url: jdbc:postgresql://rm-cn-cfn49a104000xovo.rwlb.rds.aliyuncs.com:5432/postgres?ssl=true&sslmode=require
     username: ykl_user
@@ -45,3 +49,4 @@ knife4j:
 logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: debug
+

@@ -31,14 +31,14 @@ class LoveAppDocumentLoader {
             for (Resource resource : resources) {
                 String fileName = resource.getFilename();
                 //增加文档的元信息，提取作为标签
-                String state = fileName.substring(fileName.length() - 6, fileName.length() - 4);
+                String status = fileName.substring(fileName.length() - 6, fileName.length() - 4);
                 //注意：这里指定了元信息，以便于后续知识库实现更精确的搜索
                 MarkdownDocumentReaderConfig config = MarkdownDocumentReaderConfig.builder()
                         .withHorizontalRuleCreateDocument(true)
                         .withIncludeCodeBlock(false)
                         .withIncludeBlockquote(false)
                         .withAdditionalMetadata("filename", fileName)
-                        .withAdditionalMetadata("state", state)
+                        .withAdditionalMetadata("status", status)
                         .build();
                 MarkdownDocumentReader reader = new MarkdownDocumentReader(resource, config);
                 allDocuments.addAll(reader.get());

@@ -2,7 +2,7 @@ package com.kailangye.langhuaaiagent.app;
 
 import com.kailangye.langhuaaiagent.advisor.MyLoggerAdvisor;
 import com.kailangye.langhuaaiagent.chatmemory.FileBasedChatMemory;
-import com.kailangye.langhuaaiagent.service.SearchService;
+import com.kailangye.langhuaaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -25,9 +25,6 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 @Component
 @Slf4j
 public class LoveApp {
-
-    @Resource
-    private SearchService service;
 
     private final ChatClient chatClient;
 
@@ -116,6 +113,8 @@ public class LoveApp {
                 .advisors(new MyLoggerAdvisor())
                 // 应用知识库问答
                 .advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+//                自定义的配置知识库检索规则的查询增强方法
+//                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore,"单身"))
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
@@ -143,6 +142,32 @@ public class LoveApp {
         return content;
     }
 
+    /**
+     * 模拟调用外部搜索API
+     * @param query 用户的查询
+     * @return 模拟搜索到的URL列表
+     */
+    private List<String> callSearchAPI(String query) {
+        // TODO: 在此替换为实际的searchAPI调用逻辑
+        // 例如: 使用RestTemplate, WebClient, 或其他HTTP客户端库
+        log.info("模拟搜索引擎接收查询: {}", query);
+        if (query.toLowerCase().contains("新闻") || query.toLowerCase().contains("news")) {
+            return java.util.Arrays.asList(
+                    "https://example.com/news/article1",
+                    "https://example.com/news/article2",
+                    "https://example.com/news/article3"
+            );
+        } else if (query.toLowerCase().contains("天气")) {
+            return java.util.Arrays.asList(
+                    "https://example.com/weather/" + query.replace(" ", "-")
+            );
+        }
+        // 默认返回一些通用搜索结果
+        return java.util.Arrays.asList(
+                "https://example.com/search?q=" + query.replace(" ", "+") + "&source=loveapp",
+                "https://another-search-engine.com/find?term=" + query.replace(" ", "+")
+        );
+    }
 
     /**
      * 结合在线搜索结果与AI进行对话
@@ -154,7 +179,7 @@ public class LoveApp {
         log.info("联网搜索查询: {}, chatId: {}", message, chatId);
 
         // 1. 调用（模拟的）浏览网页API进行搜索
-        List<String> searchResultsUrls = service.callSearchAPI(message);
+        List<String> searchResultsUrls = callSearchAPI(message);
         log.info("模拟搜索引擎返回的链接: {}", searchResultsUrls);
 
         // 2. 构建包含搜索结果的提示给AI
